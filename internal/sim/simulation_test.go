@@ -139,3 +139,23 @@ func TestApplyControlSettings(t *testing.T) {
 		t.Fatalf("expected lockdown to adjust speed modifier to 0.1, got %v", SpeedModifier())
 	}
 }
+
+func TestSnapshotIncludesIndicators(t *testing.T) {
+	s := New(0.3)
+	t.Cleanup(func() {
+		SetCurrentSpeedModifier(1.0)
+	})
+
+	s.currentInfected = 25
+	s.hospitalCapacity = 50
+	s.SetLockdown(true)
+
+	snap := s.Snapshot()
+	if snap.SpeedModifier != SpeedModifier() {
+		t.Fatalf("expected speed modifier %v, got %v", SpeedModifier(), snap.SpeedModifier)
+	}
+	expectedUtilization := 0.5
+	if snap.CapacityUtilization != expectedUtilization {
+		t.Fatalf("expected capacity utilization %.2f, got %.2f", expectedUtilization, snap.CapacityUtilization)
+	}
+}

@@ -29,6 +29,10 @@ message ControlState {
   bool overloaded = 4;
   // infection_probability is the effective probability after applying the rate modifier.
   double infection_probability = 5;
+  // speed_modifier tracks the movement multiplier applied to agents (1.0 is normal speed).
+  double speed_modifier = 6;
+  // capacity_utilization expresses how much of the configured capacity is currently used.
+  double capacity_utilization = 7;
 }
 
 message ControlAck {

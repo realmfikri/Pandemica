@@ -17,11 +17,13 @@ type Snapshot struct {
 	TransmissionModifier        float64
 	InfectionProbability        float64
 	LockdownEnabled             bool
+	SpeedModifier               float64
 	HospitalCapacity            int
 	DeathRateOverloadMultiplier float64
 	CurrentInfected             int
 	EffectiveDeathProbability   float64
 	Overloaded                  bool
+	CapacityUtilization         float64
 }
 
 // ControlSettings groups together the tunable parameters driven by the UI.
@@ -232,15 +234,21 @@ func (s *Simulation) Snapshot() Snapshot {
 
 func (s *Simulation) snapshotLocked() Snapshot {
 	deathProb, overloaded := s.deathProbabilityLocked()
+	capacityUtilization := 0.0
+	if s.hospitalCapacity > 0 {
+		capacityUtilization = float64(s.currentInfected) / float64(s.hospitalCapacity)
+	}
 	return Snapshot{
 		TransmissionModifier:        s.currentTransmissionModifierLocked(),
 		InfectionProbability:        s.infectionProbabilityLocked(),
 		LockdownEnabled:             s.lockdownEnabled,
+		SpeedModifier:               SpeedModifier(),
 		HospitalCapacity:            s.hospitalCapacity,
 		DeathRateOverloadMultiplier: s.deathRateOverloadMultiplier,
 		CurrentInfected:             s.currentInfected,
 		EffectiveDeathProbability:   deathProb,
 		Overloaded:                  overloaded,
+		CapacityUtilization:         capacityUtilization,
 	}
 }
 
