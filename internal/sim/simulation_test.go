@@ -109,3 +109,33 @@ func TestLockdownTogglesSpeedModifier(t *testing.T) {
 		t.Fatalf("expected speed modifier to reset to 1.0, got %v", got)
 	}
 }
+
+func TestApplyControlSettings(t *testing.T) {
+	s := New(0.3)
+	t.Cleanup(func() {
+		SetCurrentSpeedModifier(1.0)
+	})
+
+	snapshot := s.ApplyControlSettings(ControlSettings{
+		TransmissionModifier:        0.75,
+		LockdownEnabled:             true,
+		HospitalCapacity:            -5,
+		DeathRateOverloadMultiplier: 0.5,
+	})
+
+	if snapshot.TransmissionModifier != 0.75 {
+		t.Fatalf("expected transmission modifier 0.75, got %v", snapshot.TransmissionModifier)
+	}
+	if !snapshot.LockdownEnabled {
+		t.Fatalf("expected lockdown to be enabled")
+	}
+	if snapshot.HospitalCapacity != 0 {
+		t.Fatalf("expected negative capacity to clamp to 0, got %v", snapshot.HospitalCapacity)
+	}
+	if snapshot.DeathRateOverloadMultiplier != 1 {
+		t.Fatalf("expected overload multiplier to clamp to 1, got %v", snapshot.DeathRateOverloadMultiplier)
+	}
+	if SpeedModifier() != 0.1 {
+		t.Fatalf("expected lockdown to adjust speed modifier to 0.1, got %v", SpeedModifier())
+	}
+}

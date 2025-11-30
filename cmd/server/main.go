@@ -47,15 +47,7 @@ func (h *controlHub) remove(conn *websocket.Conn) {
 }
 
 func (h *controlHub) broadcastControl(state sim.Snapshot) {
-	payload, err := proto.Marshal(&pb.ControlUpdate{
-		TransmissionModifier:        state.TransmissionModifier,
-		LockdownEnabled:             state.LockdownEnabled,
-		HospitalCapacity:            int32(state.HospitalCapacity),
-		DeathRateOverloadMultiplier: state.DeathRateOverloadMultiplier,
-		CurrentInfected:             int32(state.CurrentInfected),
-		EffectiveDeathProbability:   state.EffectiveDeathProbability,
-		Overloaded:                  state.Overloaded,
-	})
+	payload, err := proto.Marshal(stateMessage(state))
 	if err != nil {
 		log.Printf("failed to marshal control update: %v", err)
 		return
@@ -84,7 +76,7 @@ func (h *controlHub) handler(simulation *sim.Simulation) http.HandlerFunc {
 		defer h.remove(conn)
 
 		// Send the current control state immediately.
-		h.broadcastControl(simulation.Snapshot())
+		h.sendState(conn, simulation.Snapshot())
 
 		for {
 			_, data, err := conn.ReadMessage()
@@ -93,18 +85,85 @@ func (h *controlHub) handler(simulation *sim.Simulation) http.HandlerFunc {
 				return
 			}
 
-			var update pb.ControlUpdate
-			if err := proto.Unmarshal(data, &update); err != nil {
-				log.Printf("unable to decode control update: %v", err)
+			var message pb.ControlMessage
+			if err := proto.Unmarshal(data, &message); err != nil {
+				log.Printf("unable to decode control message: %v", err)
+				h.sendError(conn, "invalid control payload")
 				continue
 			}
 
-			simulation.UpdateTransmissionModifier(update.GetTransmissionModifier())
-			simulation.SetLockdown(update.GetLockdownEnabled())
-			simulation.SetHospitalCapacity(int(update.GetHospitalCapacity()))
-			simulation.SetDeathRateOverloadMultiplier(update.GetDeathRateOverloadMultiplier())
-			h.broadcastControl(simulation.Snapshot())
+			switch m := message.Control.(type) {
+			case *pb.ControlMessage_Update:
+				hospital := m.Update.GetHospital()
+				settings := sim.ControlSettings{
+					TransmissionModifier: m.Update.GetTransmissionRate(),
+					LockdownEnabled:      m.Update.GetLockdownEnabled(),
+				}
+				if hospital != nil {
+					settings.HospitalCapacity = int(hospital.GetCapacity())
+					settings.DeathRateOverloadMultiplier = hospital.GetDeathRateOverloadMultiplier()
+				}
+
+				state := simulation.ApplyControlSettings(settings)
+				h.sendAck(conn, state)
+				h.broadcastControl(state)
+			default:
+				h.sendError(conn, "unsupported control message type")
+			}
 		}
+	}
+}
+
+func (h *controlHub) sendState(conn *websocket.Conn, state sim.Snapshot) {
+	if err := h.writeMessage(conn, stateMessage(state)); err != nil {
+		log.Printf("failed to send control state: %v", err)
+	}
+}
+
+func (h *controlHub) sendAck(conn *websocket.Conn, state sim.Snapshot) {
+	ack := &pb.ControlMessage{
+		Control: &pb.ControlMessage_Ack{
+			Ack: &pb.ControlAck{Message: "applied control update", State: stateMessage(state).GetState()},
+		},
+	}
+	if err := h.writeMessage(conn, ack); err != nil {
+		log.Printf("failed to send control ack: %v", err)
+	}
+}
+
+func (h *controlHub) sendError(conn *websocket.Conn, message string) {
+	errMsg := &pb.ControlMessage{Control: &pb.ControlMessage_Error{Error: &pb.ControlError{Message: message}}}
+	if err := h.writeMessage(conn, errMsg); err != nil {
+		log.Printf("failed to send control error: %v", err)
+	}
+}
+
+func (h *controlHub) writeMessage(conn *websocket.Conn, message *pb.ControlMessage) error {
+	payload, err := proto.Marshal(message)
+	if err != nil {
+		return err
+	}
+	return conn.WriteMessage(websocket.BinaryMessage, payload)
+}
+
+func stateMessage(state sim.Snapshot) *pb.ControlMessage {
+	return &pb.ControlMessage{Control: &pb.ControlMessage_State{State: snapshotToProto(state)}}
+}
+
+func snapshotToProto(state sim.Snapshot) *pb.ControlState {
+	return &pb.ControlState{
+		Settings: &pb.ControlUpdate{
+			TransmissionRate: state.TransmissionModifier,
+			LockdownEnabled:  state.LockdownEnabled,
+			Hospital: &pb.HospitalParameters{
+				Capacity:                    int32(state.HospitalCapacity),
+				DeathRateOverloadMultiplier: state.DeathRateOverloadMultiplier,
+			},
+		},
+		CurrentInfected:           int32(state.CurrentInfected),
+		EffectiveDeathProbability: state.EffectiveDeathProbability,
+		Overloaded:                state.Overloaded,
+		InfectionProbability:      state.InfectionProbability,
 	}
 }
 

@@ -2,20 +2,52 @@ syntax = "proto3";
 package pandemica;
 option go_package = "pandemica/proto";
 
-// ControlUpdate communicates UI-driven changes to the simulation parameters.
+message HospitalParameters {
+  // Maximum number of simultaneous infections that can be treated.
+  int32 capacity = 1;
+  // Scale factor applied to death probability when capacity is exceeded.
+  double death_rate_overload_multiplier = 2;
+}
+
 message ControlUpdate {
-  // transmission_modifier scales the base infection probability (0.0 - 1.0).
-  double transmission_modifier = 1;
+  // transmission_rate scales the base infection probability (0.0 - 1.0).
+  double transmission_rate = 1;
   // lockdown_enabled toggles reduced movement speed for agents.
   bool lockdown_enabled = 2;
-  // hospital_capacity caps how many simultaneous infections the system can treat.
-  int32 hospital_capacity = 3;
-  // death_rate_overload_multiplier scales the death probability when capacity is exceeded.
-  double death_rate_overload_multiplier = 4;
+  // hospital encapsulates capacity and overload parameters.
+  HospitalParameters hospital = 3;
+}
+
+message ControlState {
+  // settings reflects the current control values applied on the server.
+  ControlUpdate settings = 1;
   // current_infected reflects the latest infected count computed by the backend.
-  int32 current_infected = 5;
+  int32 current_infected = 2;
   // effective_death_probability is the per-tick death probability after overload effects.
-  double effective_death_probability = 6;
+  double effective_death_probability = 3;
   // overloaded flags whether infections are currently above hospital capacity.
-  bool overloaded = 7;
+  bool overloaded = 4;
+  // infection_probability is the effective probability after applying the rate modifier.
+  double infection_probability = 5;
+}
+
+message ControlAck {
+  // Optional informational text returned after applying a client update.
+  string message = 1;
+  // state contains the server's current control state for synchronization.
+  ControlState state = 2;
+}
+
+message ControlError {
+  // Human-friendly description of why an update failed.
+  string message = 1;
+}
+
+message ControlMessage {
+  oneof control {
+    ControlUpdate update = 1;
+    ControlState state = 2;
+    ControlAck ack = 3;
+    ControlError error = 4;
+  }
 }

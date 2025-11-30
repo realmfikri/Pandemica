@@ -9,13 +9,22 @@ const infectedEl = document.getElementById('infectedCount');
 const deathEl = document.getElementById('deathProbability');
 const capacityBanner = document.getElementById('capacityBanner');
 
+let ControlMessage;
 let ControlUpdate;
+let HospitalParameters;
 let socket;
 let lockdownEnabled = false;
 let hospitalCapacity = Number(capacityInput.value) || 0;
 let overloadMultiplier = Number(overloadInput.value) || 1;
 let currentInfected = 0;
 let overloaded = false;
+const networkStatus = document.getElementById('networkStatus');
+
+function setNetworkStatus(message, isError = false) {
+  if (!networkStatus) return;
+  networkStatus.textContent = message;
+  networkStatus.classList.toggle('error', isError);
+}
 
 function updateDisplay(value) {
   const numeric = Number(value) || 0;
@@ -53,17 +62,25 @@ function updateHealthDisplay({ infected = currentInfected, capacity = hospitalCa
 }
 
 function sendUpdate(value) {
-  if (!ControlUpdate || !socket || socket.readyState !== WebSocket.OPEN) {
+  if (!ControlUpdate || !ControlMessage || !HospitalParameters || !socket || socket.readyState !== WebSocket.OPEN) {
     return;
   }
-  const message = ControlUpdate.create({
-    transmission_modifier: Number(value),
-    lockdown_enabled: lockdownEnabled,
-    hospital_capacity: Number(capacityInput.value) || 0,
+  const hospital = HospitalParameters.create({
+    capacity: Number(capacityInput.value) || 0,
     death_rate_overload_multiplier: Number(overloadInput.value) || 1,
   });
-  const payload = ControlUpdate.encode(message).finish();
+  const update = ControlUpdate.create({
+    transmission_rate: Number(value),
+    lockdown_enabled: lockdownEnabled,
+    hospital,
+  });
+  const payload = ControlMessage.encode(
+    ControlMessage.create({
+      update,
+    })
+  ).finish();
   socket.send(payload);
+  setNetworkStatus('Sending update...', false);
 }
 
 function attachSliderHandlers() {
@@ -89,35 +106,55 @@ function attachSliderHandlers() {
   });
 }
 
+function applyState(state) {
+  if (!state) return;
+  const settings = state.settings || {};
+  const hospital = settings.hospital || {};
+  const modifier = settings.transmission_rate ?? slider.value;
+  const lockdown = settings.lockdown_enabled ?? false;
+  const capacity = hospital.capacity ?? hospitalCapacity;
+  const overload = hospital.death_rate_overload_multiplier ?? overloadMultiplier;
+  const infected = state.current_infected ?? currentInfected;
+  const deathProbability = state.effective_death_probability ?? 0;
+  const overloadedState = state.overloaded ?? false;
+
+  slider.value = modifier;
+  updateDisplay(modifier);
+  applyLockdownUI(lockdown);
+  overloadMultiplier = Number(overload) || 1;
+  overloadInput.value = overloadMultiplier;
+  updateHealthDisplay({
+    infected,
+    capacity,
+    deathProbability,
+    overloadedState,
+  });
+}
+
 function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   socket = new WebSocket(`${protocol}://${window.location.host}/ws/control`);
   socket.binaryType = 'arraybuffer';
 
   socket.addEventListener('message', (event) => {
-    if (!ControlUpdate) {
+    if (!ControlMessage) {
       return;
     }
     const data = new Uint8Array(event.data);
-    const update = ControlUpdate.decode(data);
-    const modifier = update.transmission_modifier ?? 1;
-    const lockdown = update.lockdown_enabled ?? false;
-    const capacity = update.hospital_capacity ?? hospitalCapacity;
-    const overload = update.death_rate_overload_multiplier ?? overloadMultiplier;
-    const infected = update.current_infected ?? currentInfected;
-    const deathProbability = update.effective_death_probability ?? 0;
-    const overloadedState = update.overloaded ?? false;
-    slider.value = modifier;
-    updateDisplay(modifier);
-    applyLockdownUI(lockdown);
-    overloadMultiplier = Number(overload) || 1;
-    overloadInput.value = overloadMultiplier;
-    updateHealthDisplay({
-      infected,
-      capacity,
-      deathProbability,
-      overloadedState,
-    });
+    const message = ControlMessage.decode(data);
+    if (message.state) {
+      applyState(message.state);
+      setNetworkStatus('Live state synchronized.', false);
+    }
+    if (message.ack) {
+      setNetworkStatus(message.ack.message || 'Update acknowledged.', false);
+      if (message.ack.state) {
+        applyState(message.ack.state);
+      }
+    }
+    if (message.error) {
+      setNetworkStatus(message.error.message || 'Update rejected.', true);
+    }
   });
 
   socket.addEventListener('close', () => {
@@ -127,7 +164,9 @@ function connectWebSocket() {
 
 async function init() {
   const root = await protobuf.load('/proto/control.proto');
+  ControlMessage = root.lookupType('pandemica.ControlMessage');
   ControlUpdate = root.lookupType('pandemica.ControlUpdate');
+  HospitalParameters = root.lookupType('pandemica.HospitalParameters');
   attachSliderHandlers();
   connectWebSocket();
   updateDisplay(slider.value);
