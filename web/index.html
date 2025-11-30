@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pandemica Control Panel</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.4.0/dist/protobuf.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Pandemica Simulation Controls</h1>
+  </header>
+
+  <main>
+    <section class="control">
+      <label for="transmissionSlider">Transmission modifier</label>
+      <input id="transmissionSlider" type="range" min="0" max="1" step="0.01" value="1" />
+      <div class="value-row">
+        <span>Current rate:</span>
+        <output id="transmissionValue">1.00x</output>
+      </div>
+      <p class="hint">Move the slider to scale the infection probability between agents in real time.</p>
+    </section>
+
+    <section class="help" aria-live="polite">
+      <h2>Help</h2>
+      <p>The transmission modifier multiplies the base infection probability in the simulation. A value of 1.0 keeps the default behavior, while lower numbers dampen spread and higher numbers (up to 1.0) raise the likelihood that an encounter results in infection.</p>
+      <p>Adjust the slider to send a <strong>ControlUpdate</strong> to the server. Everyone connected to the simulation will see the current rate stay in sync.</p>
+    </section>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

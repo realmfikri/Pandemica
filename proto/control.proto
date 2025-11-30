@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package pandemica;
+option go_package = "pandemica/proto";
+
+// ControlUpdate communicates UI-driven changes to the simulation parameters.
+message ControlUpdate {
+  // transmission_modifier scales the base infection probability (0.0 - 1.0).
+  double transmission_modifier = 1;
+}
