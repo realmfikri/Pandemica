@@ -50,20 +50,40 @@ func TestRunReports(t *testing.T) {
 	s.UpdateTransmissionModifier(0.5)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	reported := make(chan float64, 1)
+	reported := make(chan Snapshot, 1)
 
-	go s.Run(ctx, 10*time.Millisecond, func(prob, modifier float64) {
-		reported <- prob
+	go s.Run(ctx, 10*time.Millisecond, func(state Snapshot) {
+		reported <- state
 		cancel()
 	})
 
 	select {
-	case val := <-reported:
-		if val <= 0 {
-			t.Fatalf("expected probability to be greater than zero, got %v", val)
+	case state := <-reported:
+		if state.InfectionProbability <= 0 {
+			t.Fatalf("expected probability to be greater than zero, got %v", state.InfectionProbability)
+		}
+		if state.CurrentInfected <= 0 {
+			t.Fatalf("expected infected count to be tracked, got %v", state.CurrentInfected)
 		}
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("timed out waiting for report")
+	}
+}
+
+func TestOverloadBoostsDeathProbability(t *testing.T) {
+	s := New(0.2)
+	s.SetHospitalCapacity(2)
+	s.SetDeathRateOverloadMultiplier(3)
+	s.currentInfected = 5
+
+	prob := s.EffectiveDeathProbability()
+	expected := defaultBaseDeathRate * 3
+	if prob != expected {
+		t.Fatalf("expected overloaded death probability %v, got %v", expected, prob)
+	}
+
+	if !s.Overloaded() {
+		t.Fatal("expected simulation to be overloaded")
 	}
 }
 

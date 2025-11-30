@@ -1,5 +1,4 @@
 syntax = "proto3";
-
 package pandemica;
 option go_package = "pandemica/proto";
 
@@ -9,4 +8,14 @@ message ControlUpdate {
   double transmission_modifier = 1;
   // lockdown_enabled toggles reduced movement speed for agents.
   bool lockdown_enabled = 2;
+  // hospital_capacity caps how many simultaneous infections the system can treat.
+  int32 hospital_capacity = 3;
+  // death_rate_overload_multiplier scales the death probability when capacity is exceeded.
+  double death_rate_overload_multiplier = 4;
+  // current_infected reflects the latest infected count computed by the backend.
+  int32 current_infected = 5;
+  // effective_death_probability is the per-tick death probability after overload effects.
+  double effective_death_probability = 6;
+  // overloaded flags whether infections are currently above hospital capacity.
+  bool overloaded = 7;
 }
