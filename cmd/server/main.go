@@ -46,10 +46,15 @@ func (h *controlHub) remove(conn *websocket.Conn) {
 	conn.Close()
 }
 
-func (h *controlHub) broadcastControl(modifier float64, lockdown bool) {
+func (h *controlHub) broadcastControl(state sim.Snapshot) {
 	payload, err := proto.Marshal(&pb.ControlUpdate{
-		TransmissionModifier: modifier,
-		LockdownEnabled:      lockdown,
+		TransmissionModifier:        state.TransmissionModifier,
+		LockdownEnabled:             state.LockdownEnabled,
+		HospitalCapacity:            int32(state.HospitalCapacity),
+		DeathRateOverloadMultiplier: state.DeathRateOverloadMultiplier,
+		CurrentInfected:             int32(state.CurrentInfected),
+		EffectiveDeathProbability:   state.EffectiveDeathProbability,
+		Overloaded:                  state.Overloaded,
 	})
 	if err != nil {
 		log.Printf("failed to marshal control update: %v", err)
@@ -79,7 +84,7 @@ func (h *controlHub) handler(simulation *sim.Simulation) http.HandlerFunc {
 		defer h.remove(conn)
 
 		// Send the current control state immediately.
-		h.broadcastControl(simulation.CurrentTransmissionModifier(), simulation.LockdownEnabled())
+		h.broadcastControl(simulation.Snapshot())
 
 		for {
 			_, data, err := conn.ReadMessage()
@@ -96,7 +101,9 @@ func (h *controlHub) handler(simulation *sim.Simulation) http.HandlerFunc {
 
 			simulation.UpdateTransmissionModifier(update.GetTransmissionModifier())
 			simulation.SetLockdown(update.GetLockdownEnabled())
-			h.broadcastControl(simulation.CurrentTransmissionModifier(), simulation.LockdownEnabled())
+			simulation.SetHospitalCapacity(int(update.GetHospitalCapacity()))
+			simulation.SetDeathRateOverloadMultiplier(update.GetDeathRateOverloadMultiplier())
+			h.broadcastControl(simulation.Snapshot())
 		}
 	}
 }
@@ -112,10 +119,17 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go simulation.Run(ctx, time.Second, func(probability, modifier float64) {
+	go simulation.Run(ctx, time.Second, func(state sim.Snapshot) {
 		// Broadcast computed modifier so clients stay in sync.
-		hub.broadcastControl(modifier, simulation.LockdownEnabled())
-		log.Printf("tick probability=%.3f modifier=%.2f", probability, modifier)
+		hub.broadcastControl(state)
+		log.Printf(
+			"tick probability=%.3f modifier=%.2f infected=%d overloaded=%t death_prob=%.3f",
+			state.InfectionProbability,
+			state.TransmissionModifier,
+			state.CurrentInfected,
+			state.Overloaded,
+			state.EffectiveDeathProbability,
+		)
 	})
 
 	http.Handle("/proto/", http.StripPrefix("/proto/", http.FileServer(http.Dir("proto"))))

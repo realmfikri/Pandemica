@@ -36,6 +36,22 @@ main {
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 
+.banner {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(56, 189, 248, 0.05));
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  color: #e0f2fe;
+  font-weight: 600;
+}
+
+.banner.overloaded {
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(239, 68, 68, 0.1));
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fee2e2;
+}
+
 .visualization {
   background: #0b162b;
   border-radius: 12px;
@@ -50,6 +66,20 @@ main {
   margin-bottom: 0.75rem;
 }
 
+.control input[type="number"] {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.control input[type="number"]:focus {
+  outline: 2px solid #38bdf8;
+  border-color: #38bdf8;
+}
+
 input[type="range"] {
   width: 100%;
   accent-color: #38bdf8;
@@ -59,6 +89,32 @@ input[type="range"] {
   display: flex;
   justify-content: space-between;
   margin: 0.75rem 0;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.status-grid .label {
+  display: block;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.status-grid strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.2rem;
 }
 
 .hint {
