@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pandemica Control Panel</title>
-  <link rel="stylesheet" href="/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.4.0/dist/protobuf.min.js"></script>
-</head>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pandemica Control Panel</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.4.0/dist/protobuf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+  </head>
 <body>
   <header>
     <h1>Pandemica Simulation Controls</h1>
@@ -20,11 +21,35 @@
 
       <p id="networkStatus" class="status" role="status" aria-live="polite"></p>
 
+      <div class="indicator-grid" aria-live="polite">
+        <div class="indicator">
+          <div class="indicator-label">Transmission modifier</div>
+          <div class="metric-row">
+            <strong id="transmissionValue" class="metric">1.00x</strong>
+            <span id="infectionProbabilityValue" class="pill">0.0% chance per contact</span>
+          </div>
+          <p class="hint">Live scaling applied to the base infection probability.</p>
+        </div>
+        <div class="indicator">
+          <div class="indicator-label">Lockdown status</div>
+          <div class="metric-row">
+            <span id="lockdownBadge" class="pill">Lockdown open</span>
+            <strong id="speedBadge" class="metric">1.00x movement speed</strong>
+          </div>
+          <p class="hint">Movement speed modifier broadcast from the backend.</p>
+        </div>
+        <div class="indicator">
+          <div class="indicator-label">Capacity utilization</div>
+          <div class="capacity-bar" aria-hidden="true"><span id="capacityBar"></span></div>
+          <div id="capacityValue" class="hint">0% — Within capacity</div>
+        </div>
+      </div>
+
       <label for="transmissionSlider">Transmission modifier</label>
       <input id="transmissionSlider" type="range" min="0" max="1" step="0.01" value="1" />
       <div class="value-row">
         <span>Current rate:</span>
-        <output id="transmissionValue">1.00x</output>
+        <output aria-live="polite">linked above</output>
       </div>
       <p class="hint">Move the slider to scale the infection probability between agents in real time.</p>
 
@@ -78,12 +103,36 @@
       <p class="hint">When lockdown is active, these sample agents crawl to show how movement slows down.</p>
     </section>
 
+    <section class="charts" aria-live="polite">
+      <h2>Epidemic curves</h2>
+      <p class="hint">Line colors switch when interventions change. Dotted markers indicate when lockdown or transmission updates were applied.</p>
+      <div class="chart-wrapper">
+        <canvas id="curveChart" height="260"></canvas>
+      </div>
+    </section>
+
     <section class="help" aria-live="polite">
       <h2>Help</h2>
-      <p>The transmission modifier multiplies the base infection probability in the simulation. A value of 1.0 keeps the default behavior, while lower numbers dampen spread and higher numbers (up to 1.0) raise the likelihood that an encounter results in infection.</p>
-      <p>Adjust the slider to send a <strong>ControlUpdate</strong> to the server. Everyone connected to the simulation will see the current rate stay in sync.</p>
-      <p>Use the lockdown switch to freeze movement: the backend sets a global speed modifier to a tenth of normal and broadcasts the updated state so all clients animate consistently.</p>
-      <p>The capacity controls set how many active infections hospitals can absorb. When <strong>infected</strong> exceeds capacity, the simulation amplifies per-tick death probability by the overload multiplier. Lower multipliers keep the system resilient; higher values model severe strain.</p>
+      <p>
+        The transmission modifier multiplies the base infection probability in the simulation. A value of 1.0 keeps the default behavior,
+        while lower numbers dampen spread and higher numbers (up to 1.0) raise the likelihood that an encounter results in infection.
+        The <strong>Transmission modifier</strong> indicator shows both the requested multiplier and the resulting per-contact chance computed by the backend.
+      </p>
+      <p>
+        Adjust the slider to send a <strong>ControlUpdate</strong> to the server. Everyone connected to the simulation will see the current rate stay in sync.
+        Each update also drops a dotted marker on the charts so you can read the impact of an intervention.
+      </p>
+      <p>
+        Use the lockdown switch to freeze movement: the backend sets a global speed modifier to a tenth of normal and broadcasts the updated state so all clients animate consistently.
+        The <strong>Lockdown status</strong> badge and speed readout mirror the live speed modifier streaming from the server.
+      </p>
+      <p>
+        The capacity controls set how many active infections hospitals can absorb. When <strong>infected</strong> exceeds capacity, the simulation amplifies per-tick death probability by the overload multiplier.
+        The <strong>Capacity utilization</strong> bar fills as infections climb and turns warning red when the system is overloaded.
+      </p>
+      <p>
+        The epidemic curves plot infected counts alongside death probability. Color shifts reflect whether the simulation is in a baseline or lockdown phase, and markers show when controls changed so you can compare before-and-after trends.
+      </p>
     </section>
   </main>
 

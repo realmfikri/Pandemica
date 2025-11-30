@@ -36,6 +36,78 @@ main {
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 
+.indicator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.indicator {
+  background: #0b162b;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+}
+
+.indicator-label {
+  color: #cbd5e1;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.metric {
+  font-size: 1.25rem;
+  color: #f1f5f9;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(56, 189, 248, 0.15);
+  color: #e0f2fe;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 999px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.95rem;
+}
+
+.pill.active {
+  background: rgba(249, 115, 22, 0.15);
+  border-color: rgba(249, 115, 22, 0.45);
+  color: #fed7aa;
+}
+
+.capacity-bar {
+  position: relative;
+  height: 12px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.25rem 0;
+}
+
+.capacity-bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #22c55e, #38bdf8);
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.capacity-bar span.over {
+  background: linear-gradient(90deg, #f97316, #ef4444);
+}
+
 .banner {
   background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(56, 189, 248, 0.05));
   border: 1px solid rgba(56, 189, 248, 0.35);
@@ -58,6 +130,19 @@ main {
   padding: 1rem;
   border: 1px solid #334155;
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.charts {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid #334155;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.chart-wrapper {
+  position: relative;
+  height: 280px;
 }
 
 .control label {

@@ -8,6 +8,19 @@ const overloadInput = document.getElementById('overloadMultiplier');
 const infectedEl = document.getElementById('infectedCount');
 const deathEl = document.getElementById('deathProbability');
 const capacityBanner = document.getElementById('capacityBanner');
+const speedBadge = document.getElementById('speedBadge');
+const lockdownBadge = document.getElementById('lockdownBadge');
+const capacityBar = document.getElementById('capacityBar');
+const capacityValue = document.getElementById('capacityValue');
+const infectionProbabilityEl = document.getElementById('infectionProbabilityValue');
+const chartCanvas = document.getElementById('curveChart');
+
+let infectionChart;
+let timeIndex = 0;
+const infectionData = [];
+const deathData = [];
+const interventionMarkers = [];
+let lastPhaseLabel = 'Baseline (1.00x)';
 
 let ControlMessage;
 let ControlUpdate;
@@ -18,6 +31,7 @@ let hospitalCapacity = Number(capacityInput.value) || 0;
 let overloadMultiplier = Number(overloadInput.value) || 1;
 let currentInfected = 0;
 let overloaded = false;
+let speedModifier = 1;
 const networkStatus = document.getElementById('networkStatus');
 
 function setNetworkStatus(message, isError = false) {
@@ -26,9 +40,169 @@ function setNetworkStatus(message, isError = false) {
   networkStatus.classList.toggle('error', isError);
 }
 
+function phaseFromState({ lockdown, modifier }) {
+  const speedLabel = lockdown ? 'Lockdown' : 'Open';
+  return `${speedLabel} (${Number(modifier || 1).toFixed(2)}x)`;
+}
+
+function addInterventionMarker(label) {
+  interventionMarkers.push({ x: timeIndex, label });
+  if (interventionMarkers.length > 20) {
+    interventionMarkers.shift();
+  }
+}
+
+const interventionLinesPlugin = {
+  id: 'interventionLines',
+  afterDatasetsDraw(chart) {
+    const markers = interventionMarkers;
+    if (!markers.length) return;
+
+    const {
+      ctx,
+      chartArea: { top, bottom },
+      scales: { x },
+    } = chart;
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = '#f97316';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '12px sans-serif';
+
+    markers.forEach((marker) => {
+      const xPos = x.getPixelForValue(marker.x);
+      ctx.beginPath();
+      ctx.moveTo(xPos, top);
+      ctx.lineTo(xPos, bottom);
+      ctx.stroke();
+      ctx.fillText(marker.label, xPos + 4, top + 12);
+    });
+
+    ctx.restore();
+  },
+};
+
+function createChart() {
+  if (!chartCanvas || !window.Chart) return;
+  infectionChart = new Chart(chartCanvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: 'Current infected',
+          data: infectionData,
+          parsing: false,
+          borderColor: '#38bdf8',
+          backgroundColor: 'rgba(56, 189, 248, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          segment: {
+            borderColor: (ctx) =>
+              ctx.p1?.raw?.phase?.includes('Lockdown') ? '#f97316' : '#38bdf8',
+            backgroundColor: (ctx) =>
+              ctx.p1?.raw?.phase?.includes('Lockdown')
+                ? 'rgba(249, 115, 22, 0.15)'
+                : 'rgba(56, 189, 248, 0.1)',
+          },
+        },
+        {
+          label: 'Death probability (%)',
+          data: deathData,
+          parsing: false,
+          borderColor: '#e11d48',
+          backgroundColor: 'rgba(225, 29, 72, 0.15)',
+          borderWidth: 2,
+          fill: true,
+          yAxisID: 'y1',
+          segment: {
+            borderColor: (ctx) =>
+              ctx.p1?.raw?.phase?.includes('Lockdown') ? '#fb7185' : '#e11d48',
+            backgroundColor: (ctx) =>
+              ctx.p1?.raw?.phase?.includes('Lockdown')
+                ? 'rgba(251, 113, 133, 0.15)'
+                : 'rgba(225, 29, 72, 0.15)',
+          },
+        },
+      ],
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Simulation ticks' },
+        },
+        y: {
+          title: { display: true, text: 'Infected agents' },
+          ticks: { precision: 0 },
+        },
+        y1: {
+          position: 'right',
+          title: { display: true, text: 'Death probability (%)' },
+          min: 0,
+          max: 100,
+          grid: { drawOnChartArea: false },
+        },
+      },
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            title: (context) => `Tick ${context[0].parsed.x}`,
+            afterBody: (items) => {
+              const phase = items[0]?.raw?.phase;
+              return phase ? `Phase: ${phase}` : '';
+            },
+          },
+        },
+      },
+    },
+    plugins: [interventionLinesPlugin],
+  });
+}
+
 function updateDisplay(value) {
   const numeric = Number(value) || 0;
   valueEl.textContent = `${numeric.toFixed(2)}x`;
+}
+
+function updateIndicators({
+  infectionProbability = 0,
+  speed = speedModifier,
+  capacityUtilization = 0,
+  overloadedState = overloaded,
+  modifier = slider.value,
+  lockdown = lockdownEnabled,
+} = {}) {
+  if (infectionProbabilityEl) {
+    infectionProbabilityEl.textContent = `${(infectionProbability * 100).toFixed(1)}% chance per contact`;
+  }
+  if (speedBadge) {
+    speedBadge.textContent = `${Number(speed).toFixed(2)}x movement speed`;
+  }
+  if (lockdownBadge) {
+    lockdownBadge.textContent = lockdown ? 'Lockdown active' : 'Lockdown open';
+    lockdownBadge.classList.toggle('active', lockdown);
+  }
+  const utilizationPct = capacityUtilization * 100;
+  if (capacityBar) {
+    const bounded = Math.min(Math.max(utilizationPct, 0), 200);
+    capacityBar.style.width = `${bounded}%`;
+    capacityBar.classList.toggle('over', overloadedState || utilizationPct > 100);
+  }
+  if (capacityValue) {
+    const descriptor = overloadedState ? 'Over capacity' : 'Within capacity';
+    capacityValue.textContent = `${utilizationPct.toFixed(0)}% — ${descriptor}`;
+  }
+
+  const newPhase = phaseFromState({ lockdown, modifier });
+  if (newPhase !== lastPhaseLabel) {
+    addInterventionMarker(newPhase);
+    lastPhaseLabel = newPhase;
+  }
 }
 
 function applyLockdownUI(enabled) {
@@ -45,7 +219,12 @@ function applyLockdownUI(enabled) {
   rootStyle.setProperty('--agent-duration', `${durationSeconds.toFixed(2)}s`);
 }
 
-function updateHealthDisplay({ infected = currentInfected, capacity = hospitalCapacity, deathProbability = 0, overloadedState = overloaded }) {
+function updateHealthDisplay({
+  infected = currentInfected,
+  capacity = hospitalCapacity,
+  deathProbability = 0,
+  overloadedState = overloaded,
+}) {
   currentInfected = infected;
   hospitalCapacity = capacity;
   overloaded = overloadedState;
@@ -83,6 +262,20 @@ function sendUpdate(value) {
   setNetworkStatus('Sending update...', false);
 }
 
+function updateCharts({ infected, deathProbability, infectionProbability, modifier, lockdown }) {
+  if (!infectionChart) return;
+  timeIndex += 1;
+  const phase = phaseFromState({ lockdown, modifier });
+  infectionData.push({ x: timeIndex, y: infected, phase });
+  deathData.push({ x: timeIndex, y: (deathProbability || 0) * 100, phase });
+
+  const maxPoints = 240;
+  if (infectionData.length > maxPoints) infectionData.shift();
+  if (deathData.length > maxPoints) deathData.shift();
+
+  infectionChart.update('none');
+}
+
 function attachSliderHandlers() {
   ['input', 'change'].forEach((evt) => {
     slider.addEventListener(evt, (event) => {
@@ -117,6 +310,9 @@ function applyState(state) {
   const infected = state.current_infected ?? currentInfected;
   const deathProbability = state.effective_death_probability ?? 0;
   const overloadedState = state.overloaded ?? false;
+  const infectionProbability = state.infection_probability ?? 0;
+  speedModifier = state.speed_modifier ?? speedModifier;
+  const capacityUtilization = state.capacity_utilization ?? 0;
 
   slider.value = modifier;
   updateDisplay(modifier);
@@ -128,6 +324,21 @@ function applyState(state) {
     capacity,
     deathProbability,
     overloadedState,
+  });
+  updateIndicators({
+    infectionProbability,
+    speed: speedModifier,
+    capacityUtilization,
+    overloadedState,
+    modifier,
+    lockdown,
+  });
+  updateCharts({
+    infected,
+    deathProbability,
+    infectionProbability,
+    modifier,
+    lockdown,
   });
 }
 
@@ -167,6 +378,7 @@ async function init() {
   ControlMessage = root.lookupType('pandemica.ControlMessage');
   ControlUpdate = root.lookupType('pandemica.ControlUpdate');
   HospitalParameters = root.lookupType('pandemica.HospitalParameters');
+  createChart();
   attachSliderHandlers();
   connectWebSocket();
   updateDisplay(slider.value);
@@ -176,6 +388,14 @@ async function init() {
     capacity: hospitalCapacity,
     deathProbability: 0,
     overloadedState: overloaded,
+  });
+  updateIndicators({
+    infectionProbability: 0,
+    speed: speedModifier,
+    capacityUtilization: 0,
+    overloadedState: overloaded,
+    modifier: slider.value,
+    lockdown: lockdownEnabled,
   });
 }
 

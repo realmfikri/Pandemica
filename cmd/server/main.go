@@ -164,6 +164,8 @@ func snapshotToProto(state sim.Snapshot) *pb.ControlState {
 		EffectiveDeathProbability: state.EffectiveDeathProbability,
 		Overloaded:                state.Overloaded,
 		InfectionProbability:      state.InfectionProbability,
+		SpeedModifier:             state.SpeedModifier,
+		CapacityUtilization:       state.CapacityUtilization,
 	}
 }
 
