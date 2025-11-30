@@ -66,3 +66,26 @@ func TestRunReports(t *testing.T) {
 		t.Fatal("timed out waiting for report")
 	}
 }
+
+func TestLockdownTogglesSpeedModifier(t *testing.T) {
+	s := New(0.2)
+	t.Cleanup(func() {
+		SetCurrentSpeedModifier(1.0)
+	})
+
+	s.SetLockdown(true)
+	if !s.LockdownEnabled() {
+		t.Fatal("expected lockdown to be enabled")
+	}
+	if got := SpeedModifier(); got != 0.1 {
+		t.Fatalf("expected speed modifier to drop to 0.1, got %v", got)
+	}
+
+	s.SetLockdown(false)
+	if s.LockdownEnabled() {
+		t.Fatal("expected lockdown to be disabled")
+	}
+	if got := SpeedModifier(); got != 1.0 {
+		t.Fatalf("expected speed modifier to reset to 1.0, got %v", got)
+	}
+}

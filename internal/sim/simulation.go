@@ -17,6 +17,7 @@ type Simulation struct {
 	modifierSet      bool
 	baseTransmission float64
 	rng              *rand.Rand
+	lockdownEnabled  bool
 }
 
 // New creates a simulation with the provided base transmission probability.
@@ -25,12 +26,35 @@ func New(baseTransmission float64) *Simulation {
 	if baseTransmission <= 0 {
 		baseTransmission = 0.25
 	}
+	SetCurrentSpeedModifier(1.0)
 	return &Simulation{
 		transmissionMod:  1.0,
 		modifierSet:      false,
 		baseTransmission: baseTransmission,
 		rng:              rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
+}
+
+// SetLockdown applies a reduced movement speed when enabled and restores the
+// default when disabled.
+func (s *Simulation) SetLockdown(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.lockdownEnabled = enabled
+	if enabled {
+		SetCurrentSpeedModifier(0.1)
+	} else {
+		SetCurrentSpeedModifier(1.0)
+	}
+}
+
+// LockdownEnabled reports the current lockdown flag.
+func (s *Simulation) LockdownEnabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.lockdownEnabled
 }
 
 // UpdateTransmissionModifier records a UI-driven transmission modifier.

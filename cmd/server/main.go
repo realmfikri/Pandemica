@@ -46,8 +46,11 @@ func (h *controlHub) remove(conn *websocket.Conn) {
 	conn.Close()
 }
 
-func (h *controlHub) broadcastControl(modifier float64) {
-	payload, err := proto.Marshal(&pb.ControlUpdate{TransmissionModifier: modifier})
+func (h *controlHub) broadcastControl(modifier float64, lockdown bool) {
+	payload, err := proto.Marshal(&pb.ControlUpdate{
+		TransmissionModifier: modifier,
+		LockdownEnabled:      lockdown,
+	})
 	if err != nil {
 		log.Printf("failed to marshal control update: %v", err)
 		return
@@ -76,7 +79,7 @@ func (h *controlHub) handler(simulation *sim.Simulation) http.HandlerFunc {
 		defer h.remove(conn)
 
 		// Send the current control state immediately.
-		h.broadcastControl(simulation.CurrentTransmissionModifier())
+		h.broadcastControl(simulation.CurrentTransmissionModifier(), simulation.LockdownEnabled())
 
 		for {
 			_, data, err := conn.ReadMessage()
@@ -92,7 +95,8 @@ func (h *controlHub) handler(simulation *sim.Simulation) http.HandlerFunc {
 			}
 
 			simulation.UpdateTransmissionModifier(update.GetTransmissionModifier())
-			h.broadcastControl(simulation.CurrentTransmissionModifier())
+			simulation.SetLockdown(update.GetLockdownEnabled())
+			h.broadcastControl(simulation.CurrentTransmissionModifier(), simulation.LockdownEnabled())
 		}
 	}
 }
@@ -110,7 +114,7 @@ func main() {
 
 	go simulation.Run(ctx, time.Second, func(probability, modifier float64) {
 		// Broadcast computed modifier so clients stay in sync.
-		hub.broadcastControl(modifier)
+		hub.broadcastControl(modifier, simulation.LockdownEnabled())
 		log.Printf("tick probability=%.3f modifier=%.2f", probability, modifier)
 	})
 

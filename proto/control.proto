@@ -7,4 +7,6 @@ option go_package = "pandemica/proto";
 message ControlUpdate {
   // transmission_modifier scales the base infection probability (0.0 - 1.0).
   double transmission_modifier = 1;
+  // lockdown_enabled toggles reduced movement speed for agents.
+  bool lockdown_enabled = 2;
 }
