@@ -21,12 +21,38 @@
         <output id="transmissionValue">1.00x</output>
       </div>
       <p class="hint">Move the slider to scale the infection probability between agents in real time.</p>
+
+      <div class="toggle-row">
+        <div>
+          <label for="lockdownToggle">Lockdown</label>
+          <p class="hint">Toggle a lockdown to reduce movement speeds across the simulation.</p>
+        </div>
+        <label class="switch">
+          <input id="lockdownToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <p id="lockdownStatus" class="status">Lockdown inactive — agents moving normally.</p>
+    </section>
+
+    <section class="visualization" aria-live="polite">
+      <h2>Movement preview</h2>
+      <div class="agent-field">
+        <div class="agent a1"></div>
+        <div class="agent a2"></div>
+        <div class="agent a3"></div>
+        <div class="agent a4"></div>
+        <div class="agent a5"></div>
+        <div class="agent a6"></div>
+      </div>
+      <p class="hint">When lockdown is active, these sample agents crawl to show how movement slows down.</p>
     </section>
 
     <section class="help" aria-live="polite">
       <h2>Help</h2>
       <p>The transmission modifier multiplies the base infection probability in the simulation. A value of 1.0 keeps the default behavior, while lower numbers dampen spread and higher numbers (up to 1.0) raise the likelihood that an encounter results in infection.</p>
       <p>Adjust the slider to send a <strong>ControlUpdate</strong> to the server. Everyone connected to the simulation will see the current rate stay in sync.</p>
+      <p>Use the lockdown switch to freeze movement: the backend sets a global speed modifier to a tenth of normal and broadcasts the updated state so all clients animate consistently.</p>
     </section>
   </main>
 
