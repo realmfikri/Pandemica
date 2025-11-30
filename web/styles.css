@@ -129,6 +129,10 @@ input[type="range"] {
   font-weight: 600;
 }
 
+.status.error {
+  color: #f87171;
+}
+
 .help p {
   margin: 0.5rem 0;
   color: #cbd5e1;

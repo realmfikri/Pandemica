@@ -24,6 +24,14 @@ type Snapshot struct {
 	Overloaded                  bool
 }
 
+// ControlSettings groups together the tunable parameters driven by the UI.
+type ControlSettings struct {
+	TransmissionModifier        float64
+	LockdownEnabled             bool
+	HospitalCapacity            int
+	DeathRateOverloadMultiplier float64
+}
+
 // Simulation tracks transmission probabilities and exposes knobs to adjust the
 // spread model.
 type Simulation struct {
@@ -64,12 +72,7 @@ func (s *Simulation) SetLockdown(enabled bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.lockdownEnabled = enabled
-	if enabled {
-		SetCurrentSpeedModifier(0.1)
-	} else {
-		SetCurrentSpeedModifier(1.0)
-	}
+	s.applyLockdownLocked(enabled)
 }
 
 // LockdownEnabled reports the current lockdown flag.
@@ -85,14 +88,7 @@ func (s *Simulation) UpdateTransmissionModifier(modifier float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if modifier < 0 {
-		modifier = 0
-	} else if modifier > 1 {
-		modifier = 1
-	}
-
-	s.transmissionMod = modifier
-	s.modifierSet = true
+	s.applyTransmissionModifierLocked(modifier)
 }
 
 // CurrentTransmissionModifier returns the effective modifier, defaulting to 1.0
@@ -157,10 +153,7 @@ func (s *Simulation) SetHospitalCapacity(capacity int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if capacity < 0 {
-		capacity = 0
-	}
-	s.hospitalCapacity = capacity
+	s.hospitalCapacity = sanitizeCapacity(capacity)
 }
 
 // HospitalCapacity returns the configured capacity.
@@ -177,10 +170,21 @@ func (s *Simulation) SetDeathRateOverloadMultiplier(multiplier float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if multiplier < 1 {
-		multiplier = 1
-	}
-	s.deathRateOverloadMultiplier = multiplier
+	s.deathRateOverloadMultiplier = sanitizeOverloadMultiplier(multiplier)
+}
+
+// ApplyControlSettings atomically updates all UI-driven parameters and returns
+// a fresh snapshot reflecting the applied state.
+func (s *Simulation) ApplyControlSettings(settings ControlSettings) Snapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.applyTransmissionModifierLocked(settings.TransmissionModifier)
+	s.applyLockdownLocked(settings.LockdownEnabled)
+	s.hospitalCapacity = sanitizeCapacity(settings.HospitalCapacity)
+	s.deathRateOverloadMultiplier = sanitizeOverloadMultiplier(settings.DeathRateOverloadMultiplier)
+
+	return s.snapshotLocked()
 }
 
 // DeathRateOverloadMultiplier returns the overload multiplier.
@@ -223,6 +227,10 @@ func (s *Simulation) Snapshot() Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	return s.snapshotLocked()
+}
+
+func (s *Simulation) snapshotLocked() Snapshot {
 	deathProb, overloaded := s.deathProbabilityLocked()
 	return Snapshot{
 		TransmissionModifier:        s.currentTransmissionModifierLocked(),
@@ -240,6 +248,40 @@ func (s *Simulation) infectionProbabilityLocked() float64 {
 	modifier := s.currentTransmissionModifierLocked()
 	probability := s.baseTransmission * modifier
 	return math.Min(probability, 1.0)
+}
+
+func (s *Simulation) applyTransmissionModifierLocked(modifier float64) {
+	if modifier < 0 {
+		modifier = 0
+	} else if modifier > 1 {
+		modifier = 1
+	}
+
+	s.transmissionMod = modifier
+	s.modifierSet = true
+}
+
+func (s *Simulation) applyLockdownLocked(enabled bool) {
+	s.lockdownEnabled = enabled
+	if enabled {
+		SetCurrentSpeedModifier(0.1)
+	} else {
+		SetCurrentSpeedModifier(1.0)
+	}
+}
+
+func sanitizeCapacity(capacity int) int {
+	if capacity < 0 {
+		capacity = 0
+	}
+	return capacity
+}
+
+func sanitizeOverloadMultiplier(multiplier float64) float64 {
+	if multiplier < 1 {
+		return 1
+	}
+	return multiplier
 }
 
 func (s *Simulation) currentTransmissionModifierLocked() float64 {
